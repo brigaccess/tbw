@@ -1,6 +1,6 @@
 [softether-vpn]
 enabled = true
-logpath = {{ softether_path }}security_log/{{ softether_hub }}/*
+logpath = {{ softether_path }}security_log/*/sec_*
 port = all
 protocol = udp
 banaction = iptables-allports
@@ -10,7 +10,7 @@ filter=softether-vpn
 
 [softether-vpn]
 enabled = true
-logpath = {{ softether_path }}security_log/{{ softether_hub }}/*
+logpath = {{ softether_path }}security_log/*/sec_*
 port = all
 protocol = tcp
 banaction = iptables-allports
