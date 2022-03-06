@@ -36,7 +36,7 @@
       # - "IP:{{ ansible_default_ipv4.address }}"
       # - "{% if ansible_default_ipv6.address is defined %}IP:{{ ansible_default_ipv6.address }}{% else %}omit{% endif %}" TODO This
   register: csr
-  # when: not cert_path_stat.stat.exists
+  when: not cert_path_stat.stat.exists
 
 - name: Sign certificate with local CA
   community.crypto.x509_certificate_pipe:
@@ -49,13 +49,13 @@
     ownca_not_before: "-1d"
   delegate_to: 127.0.0.1
   register: certificate
-  # when: not cert_path_stat.stat.exists
+  when: not cert_path_stat.stat.exists
 
 - name: Save certificate to host
   ansible.builtin.copy:
     dest: "{{ cert_path }}"
     content: "{{ certificate.certificate }}"
-  # when: not cert_path_stat.stat.exists
+  when: not cert_path_stat.stat.exists
 
 - name: Upload CA certificate to host
   ansible.builtin.copy:
