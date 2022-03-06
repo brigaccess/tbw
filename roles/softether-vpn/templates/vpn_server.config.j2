@@ -1,0 +1,184 @@
+﻿# Software Configuration File
+# ---------------------------
+# 
+# You may edit this file when the VPN Server / Client / Bridge program is not running.
+# 
+# In prior to edit this file manually by your text editor,
+# shutdown the VPN Server / Client / Bridge background service.
+# Otherwise, all changes will be lost.
+# 
+declare root
+{
+	uint ConfigRevision 0
+	bool IPsecMessageDisplayed true
+	string Region {{ softether_region }}$
+	bool VgsMessageDisplayed true
+
+	declare DDnsClient
+	{
+		bool Disabled true
+	}
+	declare IPsec
+	{
+		bool EtherIP_IPsec false
+		string IPsec_Secret {{ softether_ipsec_psk }}
+		string L2TP_DefaultHub {{ softether_hub }}
+		bool L2TP_IPsec true
+		bool L2TP_Raw true
+
+		declare EtherIP_IDSettingsList
+		{
+		}
+	}
+	declare ListenerList
+	{
+		{# 5555 listener should always be present -#}
+        declare Listener0
+		{
+			bool DisableDos false
+			bool Enabled true
+			uint Port 5555
+		}
+		{% set ports_ns = namespace(offset=0) -%}
+	{%- for port in softether_ports -%}
+		{%- if port == 5555 -%}
+			{%- set ports_ns.offset = 1 -%}
+		{%- else -%}
+        declare Listener{{ loop.index - ports_ns.offset }}
+		{
+			bool DisableDos false
+			bool Enabled true
+			uint Port {{ port }}
+		}
+		{% endif %}
+	{%- endfor -%}
+	}
+	declare LocalBridgeList
+	{
+		bool DoNotDisableOffloading false
+	}
+	declare ServerConfiguration
+	{
+		bool AcceptOnlyTls true
+		string CipherName AES256-SHA256
+		bool DisableJsonRpcWebApi true
+		bool DisableOpenVPNServer false
+		bool DisableSSTPServer false
+		bool EnableVpnOverDns true
+		bool EnableVpnOverIcmp true
+		uint MaxConcurrentDnsClientThreads 512
+		uint MaxConnectionsPerIP 256
+		uint MaxUnestablishedConnections 1000
+		bool NoSendSignature false
+		string OpenVPNDefaultClientOption dev-type$20tun,link-mtu$201500,tun-mtu$201500,cipher$20AES-128-CBC,auth$20SHA1,keysize$20128,key-method$202,tls-client
+		string OpenVPN_UdpPortList 1194
+		uint ServerType 0
+		bool UseKeepConnect false
+		bool UseWebTimePage false
+		bool UseWebUI false
+	}
+	declare VirtualHUB
+	{
+		declare {{ softether_hub }}
+		{
+			bool Online true
+			uint Type 0
+
+			declare AccessList
+			{
+			}
+			declare AdminOption
+			{
+			}
+			declare CascadeList
+			{
+			}
+			declare LogSetting
+			{
+				uint PacketLogSwitchType 4
+				uint PACKET_LOG_ARP 0
+				uint PACKET_LOG_DHCP 1
+				uint PACKET_LOG_ETHERNET 0
+				uint PACKET_LOG_ICMP 0
+				uint PACKET_LOG_IP 0
+				uint PACKET_LOG_TCP 0
+				uint PACKET_LOG_TCP_CONN 1
+				uint PACKET_LOG_UDP 0
+				bool SavePacketLog true
+				bool SaveSecurityLog true
+				uint SecurityLogSwitchType 4
+			}
+			declare Message
+			{
+				string MessageText {{ softether_motd | replace("\r", "") | replace("\n", "$0D$0A") }}
+			}
+			declare Option
+			{
+				bool DoNotSaveHeavySecurityLogs false
+				bool ManageOnlyPrivateIP true
+				bool NoEnum true
+			}
+			declare SecureNAT
+			{
+				bool Disabled false
+				bool SaveLog true
+
+				declare VirtualDhcpServer
+				{
+					string DhcpDnsServerAddress {{ softether_virtualhost_ip }}
+					string DhcpDnsServerAddress2 0.0.0.0
+					string DhcpDomainName $
+					bool DhcpEnabled true
+					uint DhcpExpireTimeSpan 7200
+					string DhcpGatewayAddress {{ softether_virtualhost_ip }}
+					string DhcpLeaseIPEnd {{ softether_dhcp_lease_end }}
+					string DhcpLeaseIPStart {{ softether_dhcp_lease_start }}
+					string DhcpPushRoutes $
+					string DhcpSubnetMask {{ softether_dhcp_subnet_mask }}
+				}
+				declare VirtualHost
+				{
+					string VirtualHostIp {{ softether_virtualhost_ip }}
+					string VirtualHostIpSubnetMask {{ softether_dhcp_subnet_mask }}
+				}
+				declare VirtualRouter
+				{
+					bool NatEnabled true
+					uint NatMtu 1500
+					uint NatTcpTimeout 1800
+					uint NatUdpTimeout 60
+				}
+			}
+			declare SecurityAccountDatabase
+			{
+				declare CertList
+				{
+				}
+				declare CrlList
+				{
+				}
+				declare GroupList
+				{
+				}
+				declare IPAccessControlList
+				{
+				}
+				declare UserList
+				{
+				}
+			}
+			declare Traffic
+			{
+				declare RecvTraffic
+				{
+				}
+				declare SendTraffic
+				{
+				}
+			}
+		}
+	}
+	declare VirtualLayer3SwitchList
+	{
+	}
+}

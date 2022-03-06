@@ -1,0 +1,27 @@
+[Unit]
+Description=ssserver service
+After=network.target
+
+[Service]
+Type=exec
+Environment=PATH={{ shadowsocks_path }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/opt/go/1.17.6/bin
+WorkingDirectory={{ shadowsocks_path }}
+ExecStart={{ shadowsocks_path.rstrip("/") }}/ssserver -c {{ shadowsocks_path.rstrip("/") }}/config.json
+ExecStop=/usr/bin/killall ssserver
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ssserver
+User={{ shadowsocks_user }}
+Group=nogroup
+
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadOnlyDirectories=/
+ReadWriteDirectories=-{{ shadowsocks_path }}
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_BROADCAST CAP_NET_RAW CAP_SYS_NICE CAP_SYSLOG
+
+[Install]
+WantedBy=multi-user.target

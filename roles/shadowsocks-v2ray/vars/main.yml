@@ -1,0 +1,2 @@
+shadowsocks_v2ray_binary: v2ray-plugin
+shadowsocks_v2ray_tmp: /tmp/{{ shadowsocks_v2ray_binary }}/

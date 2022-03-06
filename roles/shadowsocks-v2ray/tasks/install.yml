@@ -1,0 +1,71 @@
+- name: Check if v2ray-plugin is already installed
+  ansible.builtin.stat:
+    path: "{{ shadowsocks_path }}{{ shadowsocks_v2ray_binary }}"
+  register: shadowsocks_v2ray_stat
+
+- name: Skip downloading unless force flag is provided
+  ansible.builtin.set_fact:
+    shadowsocks_v2ray_install_required: > 
+      (shadowsocks_v2ray_force is defined and shadowsocks_v2ray_force) 
+      or (shadowsocks_v2ray_stat.stat.exists is defined and shadowsocks_v2ray_stat.stat.exists)
+
+- name: Install golang
+  include_role: 
+    name: gantsign.golang
+    public: yes
+  when: shadowsocks_v2ray_install_required
+
+- name: Fetch v2ray-plugin
+  # It seems to me that v2ray plugin repo is somewhat overlooked by the devs, 
+  # so we have to do this instead of just grabbing the latest release
+  ansible.builtin.git:
+    repo: https://github.com/shadowsocks/v2ray-plugin.git
+    dest: "{{ shadowsocks_v2ray_tmp }}"
+    # TODO Hardcoded commit from dependabot that hasn't been merged yet
+    version: a9b9b146ab4412e45a7ed07fb189834ac3975524
+    force: yes
+  when: shadowsocks_v2ray_install_required
+
+- name: Patch v2ray-plugin
+  ansible.builtin.replace:
+    path: "{{ shadowsocks_v2ray_tmp }}main.go"
+    regexp: "= int32\\(\\*fwmark"
+    replace: "= uint32(*fwmark"
+
+- name: Build v2ray-plugin
+  ansible.builtin.command:
+    chdir: "{{ shadowsocks_v2ray_tmp }}"
+    cmd: /opt/go/{{ golang_version }}/bin/go build
+  when: shadowsocks_v2ray_install_required
+
+- name: Move v2ray-plugin to shadowsocks folder
+  ansible.builtin.copy:
+    src: "{{ shadowsocks_v2ray_tmp }}{{ shadowsocks_v2ray_binary }}"
+    dest: "{{ shadowsocks_path }}"
+    remote_src: yes
+    force: yes
+  when: shadowsocks_v2ray_install_required
+
+- name: Delete source folder
+  ansible.builtin.file:
+    path: "{{ shadowsocks_v2ray_tmp }}"
+    state: absent
+  when: shadowsocks_v2ray_install_required
+
+- name: Set permissions
+  ansible.builtin.file:
+    path: "{{ shadowsocks_path }}{{ shadowsocks_v2ray_binary }}"
+    owner: "{{ shadowsocks_user }}"
+    group: "{{ shadowsocks_user }}"
+    mode: 0555
+  when: shadowsocks_v2ray_install_required
+
+- name: Reload systemd, enable and (re)start systemd unit
+  ansible.builtin.systemd:
+    name: ssserver
+    daemon_reload: yes
+    enabled: yes
+    state: restarted
+  # It may fail when config has plugins yet to be installed, ignore it for now
+  ignore_errors: true
+  when: shadowsocks_v2ray_install_required

@@ -1,0 +1,113 @@
+- name: Check ssh port
+  ansible.builtin.command: 
+    cmd: /bin/true
+  ignore_unreachable: true
+  register: ssh_availability_result
+
+- name: Reassign SSH port if custom port wasn't passed with ansible_ssh_port
+  ansible.builtin.set_fact:
+    should_reassign_ssh_port: "{{ ssh_availability_result.unreachable is not defined or not ssh_availability_result.unreachable }}"
+
+- name: Reassign SSH port to {{ sshd_port }}
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-remap-port.conf
+    content: |
+      Port {{ sshd_port }}
+  when: should_reassign_ssh_port
+
+- name: Reload SSHD
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+  when: should_reassign_ssh_port
+
+- name: Reconnect SSH to {{ sshd_port }}
+  ansible.builtin.set_fact:
+    ansible_ssh_port: "{{ sshd_port }}"
+
+- name: Gather facts
+  ansible.builtin.gather_facts:
+
+- name: Configure iptables to accept localhost connections
+  ansible.builtin.iptables:
+    chain: INPUT
+    action: insert
+    protocol: all
+    ip_version: "{{ item }}"
+    in_interface: lo
+    jump: ACCEPT
+  when: should_reassign_ssh_port
+  loop: "{{ ['ipv4', 'ipv6'] }}"
+
+- name: Configure iptables to accept ESTABLISHED/RELATED connections
+  ansible.builtin.iptables:
+    chain: INPUT
+    action: insert
+    protocol: all
+    ip_version: "{{ item }}"
+    ctstate: 
+      - ESTABLISHED
+      - RELATED
+    jump: ACCEPT
+  when: should_reassign_ssh_port
+  loop: "{{ ['ipv4', 'ipv6'] }}"
+
+- name: Configure iptables to accept TCP/{{ sshd_port }}
+  ansible.builtin.iptables:
+    chain: INPUT
+    action: insert
+    rule_num: 3
+    protocol: tcp
+    ip_version: "{{ item }}"
+    destination_port: "{{ sshd_port }}"
+    jump: ACCEPT
+  when: should_reassign_ssh_port
+  loop: "{{ ['ipv4', 'ipv6'] }}"
+
+- name: Deny all other ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    policy: DROP
+    ip_version: "{{ item }}"
+  when: should_reassign_ssh_port
+  loop: "{{ ['ipv4', 'ipv6'] }}"
+
+- name: Create administrator account
+  ansible.builtin.user:
+    name: '{{ administrator_username }}'
+    password: '{{ administrator_password }}'
+    shell: /bin/bash
+    groups: "www-data,sudo"
+
+- name: Add authorized key to administrator account
+  ansible.posix.authorized_key:
+    user: '{{ administrator_username }}'
+    key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+
+# Workaround for non-working apt upgrade with update_cache: yes
+- name: apt update
+  ansible.builtin.command:
+    cmd: apt update
+
+- name: apt upgrade
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: yes
+
+- name: apt install python3-apt build-essential fail2ban
+  ansible.builtin.apt:
+    update_cache: yes
+    pkg:
+      - python3-apt
+      - build-essential
+      - fail2ban
+
+- name: Add github.com RSA key to known_hosts
+  ansible.builtin.shell:
+    cmd: ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+
+- name: Enable fail2ban
+  ansible.builtin.systemd:
+      name: fail2ban
+      enabled: yes
+      state: restarted

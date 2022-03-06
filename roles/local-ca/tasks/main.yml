@@ -1,0 +1,42 @@
+# Slightly modified https://docs.ansible.com/ansible/latest/collections/community/crypto/docsite/guide_ownca.html
+- name: Check if CA already exists
+  ansible.builtin.stat:
+    path: "{{ ca_key_path }}"
+  register: ca_key_stat
+
+- name: Create CA directory
+  ansible.builtin.file:
+    path: "{{ ca_path }}"
+    state: directory
+  when: not ca_key_stat.stat.exists
+
+- name: Create private key with password protection
+  community.crypto.openssl_privatekey:
+    path: "{{ ca_key_path }}"
+    cipher: auto
+    passphrase: "{{ ca_passphrase }}"
+  when: not ca_key_stat.stat.exists
+
+- name: Create certificate signing request (CSR) for CA certificate
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ ca_key_path }}"
+    privatekey_passphrase: "{{ ca_passphrase }}"
+    common_name: "{{ ca_common_name }}"
+    use_common_name_for_san: false  # since we do not specify SANs, don't use CN as a SAN
+    basic_constraints:
+      - 'CA:TRUE'
+    basic_constraints_critical: yes
+    key_usage:
+      - keyCertSign
+    key_usage_critical: true
+  register: ca_csr
+  when: not ca_key_stat.stat.exists
+
+- name: Create self-signed CA certificate from CSR
+  community.crypto.x509_certificate:
+    path: "{{ ca_cert_path }}"
+    csr_content: "{{ ca_csr.csr }}"
+    privatekey_path: "{{ ca_key_path }}"
+    privatekey_passphrase: "{{ ca_passphrase }}"
+    provider: selfsigned
+  when: not ca_key_stat.stat.exists

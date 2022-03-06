@@ -1,0 +1,5 @@
+softether_path: "/opt/softether/vpnserver/"
+softether_tmp_src_path: "/tmp/softether.tgz"
+softether_tmp_path: "/tmp/vpnserver/"
+
+softether_admin_cmd: '{{ softether_path }}vpncmd 127.0.0.1:5555 /SERVER /PASSWORD:{{ softether_server_password | quote }} /ADMINHUB:"{{ softether_hub | quote }}" /CMD '

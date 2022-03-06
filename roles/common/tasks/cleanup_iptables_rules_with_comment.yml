@@ -1,0 +1,5 @@
+
+- name: Cleanup iptables rules with comment {{ iptables_comment }}
+  ansible.builtin.shell:
+    cmd: '{{ item }}-save | grep -v "--comment {{ iptables_comment | quote }}" | {{ item }}-restore'
+  loop: "{{ ['iptables', 'ip6tables'] }}"

@@ -1,0 +1,64 @@
+proxies:
+  hosts:
+    debugvm:
+      ansible_host: 172.16.97.128
+
+  vars:
+    # To encrypt strings, use `ansible-vault encrypt_string`, 
+    # also see https://docs.ansible.com/ansible/latest/user_guide/vault.html
+    # (or just replace with plaintext if you trust yourself)
+
+    administrator_username: tbw
+    # https://docs.ansible.com/ansible/latest/reference_appendices/faq.html#how-do-i-generate-encrypted-passwords-for-the-user-module
+    administrator_password: "$6$AdNK.6Qedxz1fd46$87B5BCdO9m7vCVg9Ccy6YTgxqOfVlZa/uzCyDF3HcTq.zSwDR.IQmZMgmtsx3N8gQggawto0HTceBgUrtpdKM0"
+
+    host_names_are_public_dns: True
+
+    softether_server_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          65623131646236386337313631643432343937633236656235633063336439316261373037613338
+          3066326337366230623830333030643637333030393065330a353436616633666139656133343064
+          37383364373638616264363330653234656363396666333366396235383937373936643833343364
+          3964633736633139630a383631313061333164393031323133323533663039663538663938653737
+          66313466313937656534383834373131373266306432366639383966653934393337
+    softether_ipsec_psk: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          39386639613333366437643630316235393263623632643566386530663638353738623236393433
+          3438626364633138643031653236653536613862313464350a656363333233613738363135666361
+          62663033346366373737326136336365353966396332636466643230616163373863373566353566
+          3361386362383136340a306431633064393366623932323038626632616139663064623039653033
+          3036
+    softether_ports:
+      - 53
+      - 443
+      - 992
+      - 1194
+      - 45489
+      - 42876
+      - 38469
+      - 7804
+    softether_motd: |
+      Welcome to TBW gateway!
+
+    softether_hub: DEFAULT
+    softether_region: RU
+    softether_virtualhost_ip: 192.168.30.1
+    softether_dhcp_lease_start: 192.168.30.10
+    softether_dhcp_lease_end: 192.168.30.200
+    softether_dhcp_subnet_mask: 255.255.255.0
+
+    users:
+      - username: tbw
+        password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          36306336343432336230336330386334346236333961613463393661663766303461643966613264
+          3565383533363663353163373662613633343664386664650a656130646339646661356563363139
+          64303237356466363666623231303232663462333733356365306235353335353633383432613731
+          3735366530653332350a313439653134653131393337666261666533303063353863353838396562
+          62616430346662396338353731326136306232326334373064373933396237356637363262396265
+          3735343735386239363964343064623534353032333935383630
+        shadowsocks_endpoints:
+          - port: 3888
+          - port: 3889
+            plugin: v2ray-plugin
+            plugin_opts: "server;tls;cert=/etc/custom-ca/fullchain.pem;host={{ inventory_hostname }}"

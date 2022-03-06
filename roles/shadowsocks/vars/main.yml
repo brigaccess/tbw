@@ -1,0 +1,10 @@
+shadowsocks_path: /opt/shadowsocks/
+shadowsocks_tmp_path: /tmp/shadowsocks.tar.xz
+
+shadowsocks_user: shadowsocks
+shadowsocks_groups: 
+
+shadowsocks_default_method: aes-256-gcm
+shadowsocks_default_plugin: ""
+shadowsocks_default_plugin_opts: ""
+shadowsocks_default_timeout: 7200

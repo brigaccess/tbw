@@ -1,0 +1,14 @@
+- import_tasks: install.yml
+
+- name: Register user {{ username }}
+  include_tasks: sync_user.yml
+  vars:
+    softether_add_username: "{{ item.username }}"
+    softether_add_password: "{{ item.password }}"
+    softether_add_group: "{{ item.softether_group | default('') }}"
+    softether_add_realname: "{{ item.realname | default('') }}"
+    softether_add_note: "{{ item.softether_note | default('') }}"
+    softether_adduser_changepw: "{{ item.force | default(False) }}"
+    softether_adduser_changedata: "{{ item.force | default(False) }}"
+  loop: "{{ users }}"
+  no_log: True

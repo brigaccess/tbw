@@ -1,0 +1,66 @@
+- name: Check if shadowsocks-rust is already installed
+  ansible.builtin.stat:
+    path: "{{ shadowsocks_path }}ssserver"
+  register: shadowsocks_stat
+
+- name: Skip downloading unless force flag is provided
+  ansible.builtin.set_fact:
+    shadowsocks_install_required: (shadowsocks_force is defined and shadowsocks_force) or (shadowsocks_stat.stat.exists is defined and shadowsocks_stat.stat.exists)
+
+- name: Fetch shadowsocks-rust stable release assets
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/shadowsocks/shadowsocks-rust/releases/latest
+  register: shadowsocks_latest_assets
+  when: shadowsocks_install_required
+
+- name: Download shadowsocks-rust binaries
+  ansible.builtin.get_url:
+    url: "{{ item.browser_download_url }}"
+    dest: "{{ shadowsocks_tmp_path }}"
+  when: shadowsocks_install_required and (item.name.find(ansible_userspace_architecture + '-unknown-' + ansible_system|lower + '-gnu') != -1 and item.name.endswith('tar.xz'))
+  loop: "{{ shadowsocks_latest_assets.json.assets | flatten(levels=1) }}"
+
+- name: Ensure {{ shadowsocks_path }} exists
+  ansible.builtin.file:
+    path: "{{ shadowsocks_path }}"
+    state: directory
+  when: shadowsocks_install_required
+
+- name: Unpack shadowsocks-rust binaries
+  ansible.builtin.unarchive:
+    src: "{{ shadowsocks_tmp_path }}"
+    dest: "{{ shadowsocks_path }}"
+    remote_src: yes
+  when: shadowsocks_install_required
+
+- name: Delete binaries archive
+  ansible.builtin.file:
+    path: "{{ shadowsocks_tmp_path }}"
+    state: absent
+  when: shadowsocks_install_required
+
+- name: Create shadowsocks user "{{ shadowsocks_user }}"
+  ansible.builtin.user:
+    name: '{{ shadowsocks_user }}'
+    shell: /bin/false
+    create_home: no
+    home: "{{ shadowsocks_path }}"
+    groups: "{{ shadowsocks_groups }}"
+    system: yes
+    password: '!'
+
+- name: Set permissions
+  ansible.builtin.file:
+    path: "{{ shadowsocks_path }}"
+    owner: "{{ shadowsocks_user }}"
+    group: "{{ shadowsocks_user }}"
+    state: directory
+    mode: 0555
+    recurse: yes
+
+- name: Create systemd unit
+  ansible.builtin.template:
+    src: "templates/ssserver.service.j2"
+    dest: "/etc/systemd/system/ssserver.service"
+    mode: 0644
+  when: shadowsocks_install_required

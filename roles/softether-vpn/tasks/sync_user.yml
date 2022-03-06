@@ -1,0 +1,40 @@
+- name: Check if user "{{ softether_add_username | quote }}" already exists
+  ansible.builtin.command:
+    cmd: '{{ softether_admin_cmd }} UserGet "{{ softether_add_username | quote }}"'
+  ignore_errors: true
+  register: softether_add_user_exists
+  no_log: true
+
+- name: Create non-existent user "{{ softether_add_username | quote }}"
+  ansible.builtin.command:
+    cmd: >
+      {{ softether_admin_cmd }} UserCreate "{{ softether_add_username | quote }}"
+        /GROUP:{% if softether_add_group is defined and softether_add_group != '' %}"{{ softether_add_group | quote }}"{% else %}none{% endif %}
+        /REALNAME:{% if softether_add_realname is defined and softether_add_realname != '' %}"{{ softether_add_realname | quote }}"{% else %}none{% endif %}
+        /NOTE:{% if softether_add_note is defined and softether_add_note != '' %}{{ softether_add_note }}{% else %}none{% endif %}
+  when: softether_add_user_exists.failed
+  no_log: True
+
+- name: Assign password to the user "{{ softether_add_username | quote }}"
+  ansible.builtin.command:
+    cmd: >
+      {{ softether_admin_cmd }} UserPasswordSet "{{ softether_add_username | quote }}"
+        /PASSWORD:{{ softether_add_password | quote }}
+  when: softether_add_user_exists.failed or (softether_adduser_changepw is defined and softether_adduser_changepw)
+  no_log: True
+
+- name: Update user "{{ softether_add_username | quote }}" data
+  ansible.builtin.command:
+    cmd: >
+      {{ softether_admin_cmd }} UserSet "{{ softether_add_username | quote }}"
+        /GROUP:{% if softether_add_group is defined and softether_add_group != '' %}"{{ softether_add_group | quote }}"{% else %}none{% endif %}
+        /REALNAME:{% if softether_add_realname is defined and softether_add_realname != '' %}"{{ softether_add_realname | quote }}"{% else %}none{% endif %}
+        /NOTE:{% if softether_add_note is defined and softether_add_note != '' %}{{ softether_add_note }}{% else %}none{% endif %}
+  when: >
+    softether_add_user_exists.failed and (
+      (softether_add_group is defined and softether_add_group != '')
+      or (softether_add_realname is defined and softether_add_realname != '')
+      or (softether_add_note is defined and softether_add_note != '')
+    ) or (softether_adduser_changedata is defined and softether_adduser_changedata)
+  no_log: True
+

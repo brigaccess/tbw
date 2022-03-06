@@ -1,0 +1,19 @@
+[softether-vpn]
+enabled = true
+logpath = {{ softether_path }}security_log/{{ softether_hub }}/*
+port = all
+protocol = udp
+banaction = iptables-allports
+# Uncomment the following line if you want to be notified about banned IP's
+# action= %(action_mwl)s
+filter=softether-vpn
+
+[softether-vpn]
+enabled = true
+logpath = {{ softether_path }}security_log/{{ softether_hub }}/*
+port = all
+protocol = tcp
+banaction = iptables-allports
+# Uncomment the following line if you want to be notified about banned IP's
+# action= %(action_mwl)s
+filter=softether-vpn

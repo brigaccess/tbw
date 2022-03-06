@@ -1,0 +1,52 @@
+- name: Generate shadowsocks server list based on users
+  ansible.builtin.set_fact:
+    shadowsocks_servers: >
+      {{ shadowsocks_servers|default([]) + [{
+          "address": "0.0.0.0",
+          "port": item[1].port,
+          "password": item[0].password|mandatory,
+          "method": item[1].method|default(shadowsocks_default_method),
+          "timeout": item[1].timeout|default(shadowsocks_default_timeout),
+          "plugin": item[1].plugin|default(shadowsocks_default_plugin),
+          "plugin_opts": item[1].plugin_opts|default(shadowsocks_default_plugin_opts)
+        }]
+      }}
+  loop: "{{ users | subelements('shadowsocks_endpoints', skip_missing=True) }}"
+  no_log: true
+
+- name: Set up config
+  ansible.builtin.template:
+    src: "templates/config.json.j2"
+    dest: "{{ shadowsocks_path }}config.json"
+    mode: 0600
+    owner: "{{ shadowsocks_user }}"
+    group: "{{ shadowsocks_user }}"
+    force: yes
+
+- name: Reload systemd, enable and (re)start systemd unit
+  ansible.builtin.systemd:
+    name: ssserver
+    daemon_reload: yes
+    enabled: yes
+    state: restarted
+  # It may fail when config has plugins yet to be installed, ignore it for now
+  ignore_errors: true
+
+- name: Cleanup shadowsocks iptables rules
+  include_tasks: 
+    file: ../../common/tasks/cleanup_iptables_rules_with_comment.yml
+    apply:
+      vars:
+        iptables_comment: "shadowsocks"
+
+- name: Configure iptables to accept connections on chosen ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    action: append
+    ip_version: "{{ item[1] }}"
+    destination_port: "{{ item[0][0].port }}"
+    protocol: "{{ item[0][1] }}"
+    jump: ACCEPT
+    comment: shadowsocks
+  loop: "{{ shadowsocks_servers | product(['tcp', 'udp']) | product(['ipv4', 'ipv6']) | list }}"
+  no_log: true

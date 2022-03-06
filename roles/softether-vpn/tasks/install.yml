@@ -1,0 +1,144 @@
+- name: Check if SoftEther VPN is already installed
+  ansible.builtin.stat:
+    path: "{{ softether_path }}vpnserver"
+  register: softether_server_stat
+
+- name: Skip downloading and making unless force flag is provided
+  ansible.builtin.set_fact:
+    softether_install_required: >
+     (softether_force is defined and softether_force) 
+     or (softether_server_stat.stat.exists is defined and not softether_server_stat.stat.exists)
+
+- name: Fetch SoftEther VPN stable release assets
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/SoftEtherVPN/SoftEtherVPN_Stable/releases/latest
+  register: softether_latest_assets
+  when: softether_install_required
+
+- name: Download SoftEther VPN server sources
+  ansible.builtin.get_url:
+    url: "{{ item.browser_download_url }}"
+    dest: "{{ softether_tmp_src_path }}"
+  when: softether_install_required and (item.name.find('vpnserver') != -1 and item.name.find(ansible_system|lower + '-' + ansible_userspace_architecture|replace("x86_", "x")) != -1)
+  loop: "{{ softether_latest_assets.json.assets | flatten(levels=1) }}"
+
+- name: Unpack SoftEther VPN server sources
+  ansible.builtin.unarchive:
+    src: "{{ softether_tmp_src_path }}"
+    dest: /tmp/
+    remote_src: yes
+  when: softether_install_required
+
+- name: Delete sources archive
+  ansible.builtin.file:
+    path: "{{ softether_tmp_src_path }}"
+    state: absent
+  when: softether_install_required
+
+- name: Make SoftEther VPN server
+  ansible.builtin.command:
+    cmd: make main
+    chdir: "{{ softether_tmp_path }}"
+  when: softether_install_required
+
+- name: Ensure {{ softether_path }} exists
+  ansible.builtin.file:
+    path: "{{ softether_path }}"
+    state: directory
+  when: softether_install_required
+
+- name: Copy built server to {{ softether_path }}
+  ansible.builtin.copy:
+    src: "{{ softether_tmp_path }}"
+    dest: "{{ softether_path }}"
+    remote_src: yes
+    force: yes
+  when: softether_install_required
+
+- name: Delete built server from /tmp/
+  ansible.builtin.file:
+    path: "{{ softether_tmp_path }}"
+    state: absent
+  when: softether_install_required
+
+- name: Create systemd unit
+  ansible.builtin.template:
+    src: "templates/softether-vpnserver.service.j2"
+    dest: "/etc/systemd/system/softether-vpnserver.service"
+    mode: 0644
+  when: softether_install_required
+
+- name: Create default config
+  ansible.builtin.template:
+    src: "templates/vpn_server.config.j2"
+    dest: "{{ softether_path }}vpn_server.config"
+    mode: 0600
+    force: no
+  register: softether_default_config
+
+- name: Reload systemd, enable and (re)start systemd unit
+  ansible.builtin.systemd:
+    name: softether-vpnserver
+    daemon_reload: yes
+    enabled: yes
+    state: restarted
+  when: softether_install_required
+
+- name: Await service start
+  ansible.builtin.wait_for:
+    port: 5555
+    sleep: 5
+
+- name: Set server administrator password
+  ansible.builtin.command:
+    cmd: "{{ softether_path }}vpncmd 127.0.0.1:5555 /SERVER /CMD ServerPasswordSet '{{ softether_server_password }}'"
+  when: softether_default_config is defined and softether_default_config.changed
+  no_log: True
+
+- name: Link CA certificate to chain_certs
+  ansible.builtin.file:
+    src: /etc/custom-ca/ca.pem
+    dest: "{{ softether_path }}/chain_certs/ca.pem"
+    state: link
+
+- name: Set server certificate and key
+  ansible.builtin.command:
+    cmd: >
+      {{ softether_path }}vpncmd 127.0.0.1:5555 /SERVER /PASSWORD:{{ softether_server_password }} 
+      /CMD ServerCertSet /LOADCERT:/etc/custom-ca/cert.pem /LOADKEY:/etc/custom-ca/private.key
+  no_log: true
+
+- name: Cleanup SoftEther VPN iptables rules
+  include_tasks: 
+    file: ../../common/tasks/cleanup_iptables_rules_with_comment.yml
+    apply:
+      vars:
+        iptables_comment: "softether-vpn"
+
+- name: Configure iptables to accept connections on chosen ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    action: append
+    ip_version: "{{ item[1] }}"
+    destination_port: "{{ item[0][0] }}"
+    protocol: "{{ item[0][1] }}"
+    jump: ACCEPT
+    comment: softether-vpn
+  loop: "{{ softether_ports | product(['tcp', 'udp']) | product(['ipv4', 'ipv6']) | list }}"
+
+- name: Set up fail2ban filter
+  ansible.builtin.copy:
+    src: ../files/softether-vpn.filter.conf
+    dest: /etc/fail2ban/filter.d/
+    mode: 0644
+
+- name: Set up fail2ban jail
+  ansible.builtin.template:
+    src: ../templates/softether-vpn.jail.conf.j2
+    dest: /etc/fail2ban/jails.d/
+    mode: 0644
+
+- name: Restart fail2ban
+  ansible.builtin.systemd:
+      name: fail2ban
+      state: restarted
