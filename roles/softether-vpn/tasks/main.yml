@@ -1,6 +1,6 @@
 - import_tasks: install.yml
 
-- name: Register user {{ username }}
+- name: Register SoftEther VPN users
   include_tasks: sync_user.yml
   vars:
     softether_add_username: "{{ item.username }}"
