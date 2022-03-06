@@ -5,7 +5,9 @@
 
 - name: Skip downloading unless force flag is provided
   ansible.builtin.set_fact:
-    shadowsocks_install_required: (shadowsocks_force is defined and shadowsocks_force) or (shadowsocks_stat.stat.exists is defined and shadowsocks_stat.stat.exists)
+    shadowsocks_install_required: >
+      (shadowsocks_force is defined and shadowsocks_force)
+      or (shadowsocks_stat.stat.exists is defined and not shadowsocks_stat.stat.exists)
 
 - name: Fetch shadowsocks-rust stable release assets
   ansible.builtin.uri:

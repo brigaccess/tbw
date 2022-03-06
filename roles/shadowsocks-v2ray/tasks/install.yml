@@ -7,7 +7,7 @@
   ansible.builtin.set_fact:
     shadowsocks_v2ray_install_required: > 
       (shadowsocks_v2ray_force is defined and shadowsocks_v2ray_force) 
-      or (shadowsocks_v2ray_stat.stat.exists is defined and shadowsocks_v2ray_stat.stat.exists)
+      or (shadowsocks_v2ray_stat.stat.exists is defined and not shadowsocks_v2ray_stat.stat.exists)
 
 - name: Install golang
   include_role: 
